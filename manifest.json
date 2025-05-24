@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "网址黑名单管理器",
+  "version": "1.0",
+  "description": "管理网址黑名单并添加注释，访问黑名单网站时显示警告",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "网址黑名单管理器"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

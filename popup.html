@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 450px;
+      min-height: 400px;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      margin: 0;
+    }
+    
+    h1 {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: #333;
+      text-align: center;
+    }
+    
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #ddd;
+    }
+    
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      background: #f5f5f5;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      color: #666;
+      transition: all 0.3s;
+    }
+    
+    .tab.active {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    .tab:hover:not(.active) {
+      background: #e0e0e0;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .input-group {
+      margin-bottom: 15px;
+    }
+    
+    .input-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #555;
+    }
+    
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    
+    textarea {
+      height: 60px;
+      resize: vertical;
+    }
+    
+    .btn-group {
+      margin-bottom: 20px;
+    }
+    
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+      margin-bottom: 5px;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    .delete-btn {
+      background-color: #f44336;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    
+    .delete-btn:hover {
+      background-color: #da190b;
+    }
+    
+    .edit-btn {
+      background-color: #ff9800;
+      padding: 4px 8px;
+      font-size: 12px;
+      margin-right: 5px;
+    }
+    
+    .edit-btn:hover {
+      background-color: #e68900;
+    }
+    
+    .current-btn {
+      background-color: #2196F3;
+    }
+    
+    .current-btn:hover {
+      background-color: #0b7dda;
+    }
+    
+    .save-btn {
+      background-color: #4CAF50;
+      margin-right: 5px;
+    }
+    
+    .cancel-btn {
+      background-color: #757575;
+    }
+    
+    .cancel-btn:hover {
+      background-color: #616161;
+    }
+    
+    .blacklist-item {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background-color: #f9f9f9;
+      position: relative;
+    }
+    
+    .blacklist-item.editing {
+      background-color: #fff3cd;
+      border-color: #ffc107;
+    }
+    
+    .blacklist-url {
+      font-weight: bold;
+      color: #d32f2f;
+      word-break: break-all;
+      margin-bottom: 5px;
+    }
+    
+    .blacklist-comment {
+      color: #666;
+      font-style: italic;
+      margin-bottom: 8px;
+    }
+    
+    .item-actions {
+      display: flex;
+      gap: 5px;
+    }
+    
+    .edit-form {
+      display: none;
+    }
+    
+    .edit-form.active {
+      display: block;
+    }
+    
+    .edit-form input,
+    .edit-form textarea {
+      margin-bottom: 10px;
+    }
+    
+    .message {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      display: none;
+    }
+    
+    .message.success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .message.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .empty-state {
+      text-align: center;
+      color: #999;
+      padding: 20px;
+      font-style: italic;
+    }
+    
+    .search-box {
+      margin-bottom: 15px;
+    }
+    
+    .search-box input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    
+    .stats {
+      background: #e3f2fd;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      text-align: center;
+      color: #1976d2;
+      font-weight: bold;
+    }
+    
+    .export-import {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #ddd;
+    }
+    
+    .file-input {
+      display: none;
+    }
+    
+    .import-btn {
+      background-color: #607d8b;
+    }
+    
+    .import-btn:hover {
+      background-color: #546e7a;
+    }
+    
+    .export-btn {
+      background-color: #795548;
+    }
+    
+    .export-btn:hover {
+      background-color: #6d4c41;
+    }
+  </style>
+</head>
+<body>
+  <h1>网址黑名单管理器</h1>
+  
+  <div class="tabs">
+    <button class="tab active" data-tab="add">添加网址</button>
+    <button class="tab" data-tab="manage">管理列表</button>
+  </div>
+  
+  <div id="message" class="message"></div>
+  
+  <!-- 添加网址标签页 -->
+  <div id="add-tab" class="tab-content active">
+    <div class="input-group">
+      <label for="urlInput">网址:</label>
+      <input type="text" id="urlInput" placeholder="输入要添加到黑名单的网址">
+    </div>
+    
+    <div class="input-group">
+      <label for="commentInput">注释:</label>
+      <textarea id="commentInput" placeholder="添加注释（可选）"></textarea>
+    </div>
+    
+    <div class="btn-group">
+      <button id="addBtn">添加到黑名单</button>
+      <button id="currentBtn" class="current-btn">添加当前网页</button>
+    </div>
+  </div>
+  
+  <!-- 管理列表标签页 -->
+  <div id="manage-tab" class="tab-content">
+    <div class="stats" id="stats">
+      黑名单总数: 0
+    </div>
+    
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="搜索网址或注释...">
+    </div>
+    
+    <div id="blacklistContainer">
+      <div id="blacklistList"></div>
+    </div>
+    
+    <div class="export-import">
+      <button id="exportBtn" class="export-btn">导出黑名单</button>
+      <button id="importBtn" class="import-btn">导入黑名单</button>
+      <input type="file" id="fileInput" class="file-input" accept=".json">
+      <button id="clearAllBtn" class="delete-btn">清空所有</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
