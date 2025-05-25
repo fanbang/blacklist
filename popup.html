@@ -64,7 +64,7 @@
       color: #555;
     }
     
-    input[type="text"], textarea {
+    input[type="text"], input[type="password"], input[type="number"], textarea, select {
       width: 100%;
       padding: 8px;
       border: 1px solid #ddd;
@@ -98,6 +98,11 @@
       background-color: #45a049;
     }
     
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    
     .delete-btn {
       background-color: #f44336;
       padding: 4px 8px;
@@ -125,6 +130,22 @@
     
     .current-btn:hover {
       background-color: #0b7dda;
+    }
+    
+    .sync-btn {
+      background-color: #9C27B0;
+    }
+    
+    .sync-btn:hover {
+      background-color: #7B1FA2;
+    }
+    
+    .test-btn {
+      background-color: #607D8B;
+    }
+    
+    .test-btn:hover {
+      background-color: #455A64;
     }
     
     .save-btn {
@@ -204,6 +225,12 @@
       border: 1px solid #f5c6cb;
     }
     
+    .message.info {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
     .empty-state {
       text-align: center;
       color: #999;
@@ -233,6 +260,16 @@
       font-weight: bold;
     }
     
+    .sync-status {
+      background: #f3e5f5;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      text-align: center;
+      color: #7b1fa2;
+      font-size: 12px;
+    }
+    
     .export-import {
       margin-top: 15px;
       padding-top: 15px;
@@ -258,6 +295,66 @@
     .export-btn:hover {
       background-color: #6d4c41;
     }
+    
+    .webdav-config {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+    
+    .webdav-config h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+      margin-right: 8px;
+    }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    
+    .status-indicator.connected {
+      background-color: #4CAF50;
+    }
+    
+    .status-indicator.disconnected {
+      background-color: #f44336;
+    }
+    
+    .status-indicator.unknown {
+      background-color: #9E9E9E;
+    }
+    
+    .loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    
+    .loading::after {
+      content: '...';
+      animation: loading 1s infinite;
+    }
+    
+    @keyframes loading {
+      0%, 33% { content: '.'; }
+      34%, 66% { content: '..'; }
+      67%, 100% { content: '...'; }
+    }
   </style>
 </head>
 <body>
@@ -266,6 +363,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="add">添加网址</button>
     <button class="tab" data-tab="manage">管理列表</button>
+    <button class="tab" data-tab="sync">云同步</button>
   </div>
   
   <div id="message" class="message"></div>
@@ -310,6 +408,64 @@
     </div>
   </div>
 
+  <!-- 云同步标签页 -->
+  <div id="sync-tab" class="tab-content">
+    <div class="sync-status" id="syncStatus">
+      <span class="status-indicator unknown"></span>
+      WebDAV状态: 未配置
+    </div>
+    
+    <div class="webdav-config">
+      <h3>WebDAV 配置</h3>
+      
+      <div class="input-group">
+        <label for="webdavUrl">WebDAV服务器地址:</label>
+        <input type="text" id="webdavUrl" placeholder="https://example.com/dav/">
+      </div>
+      
+      <div class="input-group">
+        <label for="webdavUsername">用户名:</label>
+        <input type="text" id="webdavUsername" placeholder="输入用户名">
+      </div>
+      
+      <div class="input-group">
+        <label for="webdavPassword">密码:</label>
+        <input type="password" id="webdavPassword" placeholder="输入密码">
+      </div>
+      
+      <div class="input-group">
+        <label for="webdavFilename">文件名:</label>
+        <input type="text" id="webdavFilename" value="blacklist.json" placeholder="blacklist.json">
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="autoSyncEnabled">
+        <label for="autoSyncEnabled">启用自动同步</label>
+      </div>
+      
+      <div class="input-group">
+        <label for="syncInterval">同步间隔 (分钟):</label>
+        <input type="number" id="syncInterval" value="60" min="5" max="1440">
+      </div>
+      
+      <div class="btn-group">
+        <button id="saveConfigBtn">保存配置</button>
+        <button id="testConnectionBtn" class="test-btn">测试连接</button>
+      </div>
+    </div>
+    
+    <div class="btn-group">
+      <button id="uploadBtn" class="sync-btn">上传到云端</button>
+      <button id="downloadBtn" class="sync-btn">从云端下载</button>
+      <button id="syncBtn" class="sync-btn">智能同步</button>
+    </div>
+    
+    <div class="sync-status" id="lastSyncTime" style="display: none;">
+      最后同步时间: 从未同步
+    </div>
+  </div>
+
+  <script src="webdav.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
