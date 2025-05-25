@@ -6,7 +6,9 @@
   "permissions": [
     "storage",
     "activeTab",
-    "tabs"
+    "tabs",
+    "notifications",
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -24,10 +26,5 @@
   ],
   "background": {
     "service_worker": "background.js"
-  },
-  "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
-  }
+  } 
 }
