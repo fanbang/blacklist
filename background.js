@@ -112,7 +112,7 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
       return;
     }
     if (tab && tab.url) {
-      checkTabBlacklist(tab);
+     debouncedCheckTabBlacklist(tab); // 修正：使用防抖版本
     }
   });
 });
