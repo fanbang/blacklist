@@ -40,7 +40,22 @@ chrome.runtime.onInstalled.addListener(() => {
   // 设置右键菜单
   setupContextMenus();
 });
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
 
+// 修改检查标签页黑名单函数 - 添加防抖和缓存
+const debouncedCheckTabBlacklist = debounce(checkTabBlacklist, 300);
+const blacklistCache = new Map();
+const cacheExpireTime = 5 * 60 * 1000; // 5分钟缓存
 // 设置右键菜单
 function setupContextMenus() {
   chrome.contextMenus.removeAll(() => {
@@ -85,7 +100,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // 当页面完成加载时检查黑名单
   if (changeInfo.status === 'complete' && tab.url) {
-    checkTabBlacklist(tab);
+    debouncedCheckTabBlacklist(tab);
   }
 });
 
@@ -102,7 +117,54 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
   });
 });
 
-// 检查标签页是否在黑名单中
+// 提取阻止站点处理逻辑
+function handleBlockedSite(tab, matchedUrl, comment, settings) {
+  // 发送通知（如果启用）
+  if (settings.enableNotifications) {
+    chrome.notifications.create(`blocked_${tab.id}`, {
+      type: 'basic',
+      iconUrl: 'icon48.png',
+      title: '网址黑名单警告',
+      message: `访问了黑名单网址: ${matchedUrl}${comment ? '\n注释: ' + comment : ''}`,
+      silent: false
+    });
+  }
+  
+  // 自动关闭标签页（如果启用）
+  if (settings.enableAutoClose) {
+    setTimeout(() => {
+      chrome.tabs.remove(tab.id, (result) => {
+        if (chrome.runtime.lastError) {
+          console.error('关闭标签页失败:', chrome.runtime.lastError);
+        }
+      });
+    }, 3000);
+  }
+  
+  // 记录访问日志
+  logBlacklistAccess(tab.url, matchedUrl, comment);
+}
+// 提取徽章更新逻辑
+function updateTabBadge(tabId, isBlocked) {
+  if (isBlocked) {
+    chrome.action.setBadgeText({ tabId, text: '!' });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: '#ff4444' });
+  } else {
+    chrome.action.setBadgeText({ tabId, text: '' });
+  }
+}
+
+// 添加内存清理功能
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of blacklistCache.entries()) {
+    if (now - value.timestamp > cacheExpireTime) {
+      blacklistCache.delete(key);
+    }
+  }
+}, 10 * 60 * 1000); // 每10分钟清理一次
+
+// 替换原有的 checkTabBlacklist 函数
 async function checkTabBlacklist(tab) {
   try {
     const url = new URL(tab.url);
@@ -110,10 +172,19 @@ async function checkTabBlacklist(tab) {
     
     // 跳过特殊页面
     if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || 
-        url.protocol === 'moz-extension:' || url.protocol === 'edge:') {
+        url.protocol === 'moz-extension:' || url.protocol === 'edge:' ||
+        url.protocol === 'about:' || url.protocol === 'file:') {
       return;
     }
-    
+
+    // 检查缓存
+    const cacheKey = `${hostname}_${tab.id}`;
+    const cached = blacklistCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < cacheExpireTime) {
+      updateTabBadge(tab.id, cached.isBlocked);
+      return;
+    }
+
     chrome.storage.sync.get(['blacklist', 'settings'], (result) => {
       if (chrome.runtime.lastError) {
         console.error('获取存储数据失败:', chrome.runtime.lastError);
@@ -127,19 +198,23 @@ async function checkTabBlacklist(tab) {
       let matchedUrl = '';
       let comment = '';
       
-      // 检查是否匹配黑名单
+      // 优化匹配逻辑
       for (const [blockedUrl, blockedComment] of Object.entries(blacklist)) {
+        const blockedUrlLower = blockedUrl.toLowerCase();
+        
         if (settings.strictMode) {
           // 严格模式：完全匹配
-          if (hostname === blockedUrl.toLowerCase()) {
+          if (hostname === blockedUrlLower) {
             isBlocked = true;
             matchedUrl = blockedUrl;
             comment = blockedComment;
             break;
           }
         } else {
-          // 宽松模式：包含匹配
-          if (hostname.includes(blockedUrl.toLowerCase()) || blockedUrl.toLowerCase().includes(hostname)) {
+          // 宽松模式：包含匹配 - 添加更智能的匹配
+          if (hostname.includes(blockedUrlLower) || 
+              blockedUrlLower.includes(hostname) ||
+              isWildcardMatch(hostname, blockedUrlLower)) {
             isBlocked = true;
             matchedUrl = blockedUrl;
             comment = blockedComment;
@@ -148,51 +223,36 @@ async function checkTabBlacklist(tab) {
         }
       }
       
+      // 缓存结果
+      blacklistCache.set(cacheKey, {
+        isBlocked,
+        timestamp: Date.now()
+      });
+
+      updateTabBadge(tab.id, isBlocked);
+      
       if (isBlocked) {
-        // 更新扩展图标，显示警告状态
-        chrome.action.setBadgeText({
-          tabId: tab.id,
-          text: '!'
-        });
-        chrome.action.setBadgeBackgroundColor({
-          tabId: tab.id,
-          color: '#ff4444'
-        });
-        
-        // 发送通知（如果启用）
-        if (settings.enableNotifications) {
-          chrome.notifications.create({
-            type: 'basic',
-            iconUrl: 'icon48.png',
-            title: '网址黑名单警告',
-            message: `访问了黑名单网址: ${matchedUrl}${comment ? '\n注释: ' + comment : ''}`
-          });
-        }
-        
-        // 自动关闭标签页（如果启用）
-        if (settings.enableAutoClose) {
-          setTimeout(() => {
-            chrome.tabs.remove(tab.id, (result) => {
-              if (chrome.runtime.lastError) {
-                console.error('关闭标签页失败:', chrome.runtime.lastError);
-              }
-            });
-          }, 3000);
-        }
-        
-        // 记录访问日志
-        logBlacklistAccess(hostname, matchedUrl, comment);
-      } else {
-        // 如果不在黑名单中，清除徽章
-        chrome.action.setBadgeText({
-          tabId: tab.id,
-          text: ''
-        });
+        handleBlockedSite(tab, matchedUrl, comment, settings);
       }
     });
   } catch (error) {
-    // 忽略无效URL错误
     console.error('检查黑名单时出错:', error);
+  }
+}
+
+// 新增通配符匹配函数
+function isWildcardMatch(hostname, pattern) {
+  if (!pattern.includes('*')) return false;
+  
+  const regexPattern = pattern
+    .replace(/\./g, '\\.')
+    .replace(/\*/g, '.*');
+  
+  try {
+    const regex = new RegExp(`^${regexPattern}$`);
+    return regex.test(hostname);
+  } catch (error) {
+    return false;
   }
 }
 
