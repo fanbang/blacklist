@@ -13,6 +13,21 @@ document.addEventListener('DOMContentLoaded', function() {
   const fileInput = document.getElementById('fileInput');
   const clearAllBtn = document.getElementById('clearAllBtn');
 
+  // WebDAV相关元素
+  const webdavUrl = document.getElementById('webdavUrl');
+  const webdavUsername = document.getElementById('webdavUsername');
+  const webdavPassword = document.getElementById('webdavPassword');
+  const webdavFilename = document.getElementById('webdavFilename');
+  const autoSyncEnabled = document.getElementById('autoSyncEnabled');
+  const syncInterval = document.getElementById('syncInterval');
+  const saveConfigBtn = document.getElementById('saveConfigBtn');
+  const testConnectionBtn = document.getElementById('testConnectionBtn');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const syncBtn = document.getElementById('syncBtn');
+  const syncStatus = document.getElementById('syncStatus');
+  const lastSyncTime = document.getElementById('lastSyncTime');
+
   let currentBlacklist = {};
   let editingItem = null;
 
@@ -36,6 +51,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (tabName === 'manage') {
       loadBlacklist();
     }
+    
+    // 如果切换到同步页面，加载配置
+    if (tabName === 'sync') {
+      loadWebDAVConfig();
+      updateSyncStatus();
+    }
   }
 
   // 显示消息
@@ -46,6 +67,17 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
       message.style.display = 'none';
     }, 3000);
+  }
+
+  // 设置按钮加载状态
+  function setButtonLoading(button, isLoading) {
+    if (isLoading) {
+      button.disabled = true;
+      button.classList.add('loading');
+    } else {
+      button.disabled = false;
+      button.classList.remove('loading');
+    }
   }
 
   // 标准化URL
@@ -211,7 +243,10 @@ document.addEventListener('DOMContentLoaded', function() {
       
       blacklist[normalizedNewUrl] = newComment;
       
-      chrome.storage.sync.set({ blacklist }, function() {
+      chrome.storage.sync.set({ 
+        blacklist,
+        lastModified: Date.now()
+      }, function() {
         showMessage('修改成功');
         loadBlacklist();
         editingItem = null;
@@ -240,7 +275,10 @@ document.addEventListener('DOMContentLoaded', function() {
       
       blacklist[normalizedUrl] = comment;
       
-      chrome.storage.sync.set({ blacklist }, function() {
+      chrome.storage.sync.set({ 
+        blacklist,
+        lastModified: Date.now()
+      }, function() {
         showMessage(`已添加 ${normalizedUrl} 到黑名单`);
         urlInput.value = '';
         commentInput.value = '';
@@ -259,7 +297,10 @@ document.addEventListener('DOMContentLoaded', function() {
       const blacklist = result.blacklist || {};
       delete blacklist[url];
       
-      chrome.storage.sync.set({ blacklist }, function() {
+      chrome.storage.sync.set({ 
+        blacklist,
+        lastModified: Date.now()
+      }, function() {
         showMessage(`已从黑名单中删除 ${url}`);
         loadBlacklist();
       });
@@ -293,7 +334,10 @@ document.addEventListener('DOMContentLoaded', function() {
           const currentBlacklist = result.blacklist || {};
           const mergedBlacklist = { ...currentBlacklist, ...importedData };
           
-          chrome.storage.sync.set({ blacklist: mergedBlacklist }, function() {
+          chrome.storage.sync.set({ 
+            blacklist: mergedBlacklist,
+            lastModified: Date.now()
+          }, function() {
             const addedCount = Object.keys(importedData).length;
             showMessage(`成功导入 ${addedCount} 个网址`);
             loadBlacklist();
@@ -309,11 +353,162 @@ document.addEventListener('DOMContentLoaded', function() {
   // 清空所有黑名单
   function clearAllBlacklist() {
     if (confirm('确定要清空所有黑名单吗？此操作不可恢复！')) {
-      chrome.storage.sync.set({ blacklist: {} }, function() {
+      chrome.storage.sync.set({ 
+        blacklist: {},
+        lastModified: Date.now()
+      }, function() {
         showMessage('已清空所有黑名单');
         loadBlacklist();
       });
     }
+  }
+
+  // WebDAV配置相关功能
+  function loadWebDAVConfig() {
+    chrome.storage.sync.get(['webdavSettings'], function(result) {
+      const settings = result.webdavSettings || {};
+      
+      webdavUrl.value = settings.url || '';
+      webdavUsername.value = settings.username || '';
+      webdavPassword.value = settings.password || '';
+      webdavFilename.value = settings.filename || 'blacklist.json';
+      autoSyncEnabled.checked = settings.autoSync || false;
+      syncInterval.value = settings.syncInterval || 60;
+    });
+  }
+
+  function saveWebDAVConfig() {
+    const settings = {
+      url: webdavUrl.value.trim(),
+      username: webdavUsername.value.trim(),
+      password: webdavPassword.value,
+      filename: webdavFilename.value.trim() || 'blacklist.json',
+      autoSync: autoSyncEnabled.checked,
+      syncInterval: parseInt(syncInterval.value) || 60
+    };
+
+    chrome.storage.sync.set({ webdavSettings: settings }, function() {
+      showMessage('WebDAV配置已保存');
+      updateSyncStatus();
+    });
+  }
+
+  function updateSyncStatus() {
+    chrome.storage.sync.get(['webdavSettings'], function(result) {
+      const settings = result.webdavSettings || {};
+      const indicator = syncStatus.querySelector('.status-indicator');
+      
+      if (settings.url && settings.username) {
+        indicator.className = 'status-indicator connected';
+        syncStatus.innerHTML = '<span class="status-indicator connected"></span>WebDAV状态: 已配置';
+      } else {
+        indicator.className = 'status-indicator disconnected';
+        syncStatus.innerHTML = '<span class="status-indicator disconnected"></span>WebDAV状态: 未配置';
+      }
+    });
+  }
+
+  function testWebDAVConnection() {
+    const settings = {
+      url: webdavUrl.value.trim(),
+      username: webdavUsername.value.trim(),
+      password: webdavPassword.value
+    };
+
+    if (!settings.url || !settings.username) {
+      showMessage('请填写完整的WebDAV信息', 'error');
+      return;
+    }
+
+    setButtonLoading(testConnectionBtn, true);
+
+    chrome.runtime.sendMessage({
+      action: 'testWebDAV',
+      settings: settings
+    }, function(response) {
+      setButtonLoading(testConnectionBtn, false);
+      
+      if (response.success) {
+        showMessage('WebDAV连接测试成功', 'success');
+      } else {
+        showMessage(`连接失败: ${response.error}`, 'error');
+      }
+    });
+  }
+
+  function uploadToWebDAV() {
+    setButtonLoading(uploadBtn, true);
+
+    chrome.runtime.sendMessage({
+      action: 'uploadToWebDAV'
+    }, function(response) {
+      setButtonLoading(uploadBtn, false);
+      
+      if (response.success) {
+        showMessage('上传到云端成功', 'success');
+        updateLastSyncTime();
+      } else {
+        showMessage(`上传失败: ${response.error}`, 'error');
+      }
+    });
+  }
+
+  function downloadFromWebDAV() {
+    setButtonLoading(downloadBtn, true);
+
+    chrome.runtime.sendMessage({
+      action: 'downloadFromWebDAV'
+    }, function(response) {
+      setButtonLoading(downloadBtn, false);
+      
+      if (response.success) {
+        showMessage(`从云端下载成功，共 ${response.count} 个网址`, 'success');
+        updateLastSyncTime();
+        // 如果当前在管理页面，刷新列表
+        if (document.getElementById('manage-tab').classList.contains('active')) {
+          loadBlacklist();
+        }
+      } else {
+        showMessage(`下载失败: ${response.error}`, 'error');
+      }
+    });
+  }
+
+  function smartSync() {
+    setButtonLoading(syncBtn, true);
+
+    // 智能同步：先下载，合并，再上传
+    chrome.runtime.sendMessage({
+      action: 'downloadFromWebDAV'
+    }, function(downloadResponse) {
+      if (downloadResponse.success) {
+        // 下载成功后上传本地数据
+        chrome.runtime.sendMessage({
+          action: 'uploadToWebDAV'
+        }, function(uploadResponse) {
+          setButtonLoading(syncBtn, false);
+          
+          if (uploadResponse.success) {
+            showMessage('智能同步完成', 'success');
+            updateLastSyncTime();
+            // 刷新当前页面列表
+            if (document.getElementById('manage-tab').classList.contains('active')) {
+              loadBlacklist();
+            }
+          } else {
+            showMessage(`同步失败: ${uploadResponse.error}`, 'error');
+          }
+        });
+      } else {
+        setButtonLoading(syncBtn, false);
+        showMessage(`同步失败: ${downloadResponse.error}`, 'error');
+      }
+    });
+  }
+
+  function updateLastSyncTime() {
+    lastSyncTime.style.display = 'block';
+    lastSyncTime.textContent = `最后同步时间: ${new Date().toLocaleString()}`;
   }
 
   // 事件监听器
@@ -367,6 +562,13 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   clearAllBtn.addEventListener('click', clearAllBlacklist);
+
+  // WebDAV事件监听器
+  saveConfigBtn.addEventListener('click', saveWebDAVConfig);
+  testConnectionBtn.addEventListener('click', testWebDAVConnection);
+  uploadBtn.addEventListener('click', uploadToWebDAV);
+  downloadBtn.addEventListener('click', downloadFromWebDAV);
+  syncBtn.addEventListener('click', smartSync);
 
   // Enter键提交
   urlInput.addEventListener('keypress', function(e) {
