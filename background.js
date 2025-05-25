@@ -37,9 +37,6 @@ chrome.runtime.onInstalled.addListener(() => {
     }
   });
 
-  // 初始化WebDAV同步
-  initWebDAVSync();
-  
   // 设置右键菜单
   setupContextMenus();
 });
@@ -95,7 +92,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // 监听标签页激活事件
 chrome.tabs.onActivated.addListener((activeInfo) => {
   chrome.tabs.get(activeInfo.tabId, (tab) => {
-    if (tab.url) {
+    if (chrome.runtime.lastError) {
+      console.error('获取标签页失败:', chrome.runtime.lastError);
+      return;
+    }
+    if (tab && tab.url) {
       checkTabBlacklist(tab);
     }
   });
@@ -113,72 +114,82 @@ async function checkTabBlacklist(tab) {
       return;
     }
     
-    const result = await chrome.storage.sync.get(['blacklist', 'settings']);
-    const blacklist = result.blacklist || {};
-    const settings = result.settings || {};
-    
-    let isBlocked = false;
-    let matchedUrl = '';
-    let comment = '';
-    
-    // 检查是否匹配黑名单
-    for (const [blockedUrl, blockedComment] of Object.entries(blacklist)) {
-      if (settings.strictMode) {
-        // 严格模式：完全匹配
-        if (hostname === blockedUrl.toLowerCase()) {
-          isBlocked = true;
-          matchedUrl = blockedUrl;
-          comment = blockedComment;
-          break;
-        }
-      } else {
-        // 宽松模式：包含匹配
-        if (hostname.includes(blockedUrl.toLowerCase()) || blockedUrl.toLowerCase().includes(hostname)) {
-          isBlocked = true;
-          matchedUrl = blockedUrl;
-          comment = blockedComment;
-          break;
+    chrome.storage.sync.get(['blacklist', 'settings'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('获取存储数据失败:', chrome.runtime.lastError);
+        return;
+      }
+      
+      const blacklist = result.blacklist || {};
+      const settings = result.settings || {};
+      
+      let isBlocked = false;
+      let matchedUrl = '';
+      let comment = '';
+      
+      // 检查是否匹配黑名单
+      for (const [blockedUrl, blockedComment] of Object.entries(blacklist)) {
+        if (settings.strictMode) {
+          // 严格模式：完全匹配
+          if (hostname === blockedUrl.toLowerCase()) {
+            isBlocked = true;
+            matchedUrl = blockedUrl;
+            comment = blockedComment;
+            break;
+          }
+        } else {
+          // 宽松模式：包含匹配
+          if (hostname.includes(blockedUrl.toLowerCase()) || blockedUrl.toLowerCase().includes(hostname)) {
+            isBlocked = true;
+            matchedUrl = blockedUrl;
+            comment = blockedComment;
+            break;
+          }
         }
       }
-    }
-    
-    if (isBlocked) {
-      // 更新扩展图标，显示警告状态
-      chrome.action.setBadgeText({
-        tabId: tab.id,
-        text: '!'
-      });
-      chrome.action.setBadgeBackgroundColor({
-        tabId: tab.id,
-        color: '#ff4444'
-      });
       
-      // 发送通知（如果启用）
-      if (settings.enableNotifications) {
-        chrome.notifications.create({
-          type: 'basic',
-          iconUrl: 'icon48.png',
-          title: '网址黑名单警告',
-          message: `访问了黑名单网址: ${matchedUrl}${comment ? '\n注释: ' + comment : ''}`
+      if (isBlocked) {
+        // 更新扩展图标，显示警告状态
+        chrome.action.setBadgeText({
+          tabId: tab.id,
+          text: '!'
+        });
+        chrome.action.setBadgeBackgroundColor({
+          tabId: tab.id,
+          color: '#ff4444'
+        });
+        
+        // 发送通知（如果启用）
+        if (settings.enableNotifications) {
+          chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icon48.png',
+            title: '网址黑名单警告',
+            message: `访问了黑名单网址: ${matchedUrl}${comment ? '\n注释: ' + comment : ''}`
+          });
+        }
+        
+        // 自动关闭标签页（如果启用）
+        if (settings.enableAutoClose) {
+          setTimeout(() => {
+            chrome.tabs.remove(tab.id, (result) => {
+              if (chrome.runtime.lastError) {
+                console.error('关闭标签页失败:', chrome.runtime.lastError);
+              }
+            });
+          }, 3000);
+        }
+        
+        // 记录访问日志
+        logBlacklistAccess(hostname, matchedUrl, comment);
+      } else {
+        // 如果不在黑名单中，清除徽章
+        chrome.action.setBadgeText({
+          tabId: tab.id,
+          text: ''
         });
       }
-      
-      // 自动关闭标签页（如果启用）
-      if (settings.enableAutoClose) {
-        setTimeout(() => {
-          chrome.tabs.remove(tab.id);
-        }, 3000);
-      }
-      
-      // 记录访问日志
-      logBlacklistAccess(hostname, matchedUrl, comment);
-    } else {
-      // 如果不在黑名单中，清除徽章
-      chrome.action.setBadgeText({
-        tabId: tab.id,
-        text: ''
-      });
-    }
+    });
   } catch (error) {
     // 忽略无效URL错误
     console.error('检查黑名单时出错:', error);
@@ -188,6 +199,11 @@ async function checkTabBlacklist(tab) {
 // 记录黑名单访问日志
 function logBlacklistAccess(hostname, matchedUrl, comment) {
   chrome.storage.local.get(['accessLog'], (result) => {
+    if (chrome.runtime.lastError) {
+      console.error('获取访问日志失败:', chrome.runtime.lastError);
+      return;
+    }
+    
     const accessLog = result.accessLog || [];
     
     accessLog.unshift({
@@ -203,7 +219,11 @@ function logBlacklistAccess(hostname, matchedUrl, comment) {
       accessLog.splice(100);
     }
     
-    chrome.storage.local.set({ accessLog });
+    chrome.storage.local.set({ accessLog }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('保存访问日志失败:', chrome.runtime.lastError);
+      }
+    });
   });
 }
 
@@ -214,21 +234,38 @@ function addCurrentPageToBlacklist(tab) {
     const hostname = url.hostname.toLowerCase();
     
     chrome.storage.sync.get(['blacklist'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('获取黑名单失败:', chrome.runtime.lastError);
+        return;
+      }
+      
       const blacklist = result.blacklist || {};
       
       if (!blacklist[hostname]) {
-        blacklist[hostname] = `来自右键菜单: ${tab.title}`;
+        blacklist[hostname] = `来自右键菜单: ${tab.title || '未知页面'}`;
         
         chrome.storage.sync.set({ 
           blacklist,
           lastModified: Date.now()
         }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('保存黑名单失败:', chrome.runtime.lastError);
+            return;
+          }
+          
           chrome.notifications.create({
             type: 'basic',
             iconUrl: 'icon48.png',
             title: '添加成功',
             message: `已将 ${hostname} 添加到黑名单`
           });
+        });
+      } else {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icon48.png',
+          title: '提示',
+          message: `${hostname} 已在黑名单中`
         });
       }
     });
@@ -244,6 +281,11 @@ function addLinkToBlacklist(linkUrl) {
     const hostname = url.hostname.toLowerCase();
     
     chrome.storage.sync.get(['blacklist'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('获取黑名单失败:', chrome.runtime.lastError);
+        return;
+      }
+      
       const blacklist = result.blacklist || {};
       
       if (!blacklist[hostname]) {
@@ -253,12 +295,24 @@ function addLinkToBlacklist(linkUrl) {
           blacklist,
           lastModified: Date.now()
         }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('保存黑名单失败:', chrome.runtime.lastError);
+            return;
+          }
+          
           chrome.notifications.create({
             type: 'basic',
             iconUrl: 'icon48.png',
             title: '添加成功',
             message: `已将链接 ${hostname} 添加到黑名单`
           });
+        });
+      } else {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icon48.png',
+          title: '提示',
+          message: `${hostname} 已在黑名单中`
         });
       }
     });
@@ -287,22 +341,14 @@ async function performQuickSync() {
   }
 }
 
-// 初始化WebDAV同步
-async function initWebDAVSync() {
-  try {
-    if (typeof webdavSync !== 'undefined') {
-      await webdavSync.init();
-      webdavSync.startAutoSync();
-    }
-  } catch (error) {
-    console.error('WebDAV同步初始化失败:', error);
-  }
-}
-
 // 监听来自内容脚本和popup的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'checkBlacklist') {
     chrome.storage.sync.get(['blacklist'], (result) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ error: chrome.runtime.lastError.message });
+        return;
+      }
       sendResponse({ blacklist: result.blacklist || {} });
     });
     return true;
@@ -310,6 +356,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.action === 'getAccessLog') {
     chrome.storage.local.get(['accessLog'], (result) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ error: chrome.runtime.lastError.message });
+        return;
+      }
       sendResponse({ accessLog: result.accessLog || [] });
     });
     return true;
@@ -317,6 +367,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.action === 'clearAccessLog') {
     chrome.storage.local.set({ accessLog: [] }, () => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        return;
+      }
       sendResponse({ success: true });
     });
     return true;
@@ -324,6 +378,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.action === 'getSettings') {
     chrome.storage.sync.get(['settings'], (result) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ error: chrome.runtime.lastError.message });
+        return;
+      }
       sendResponse({ settings: result.settings || {} });
     });
     return true;
@@ -331,6 +389,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.action === 'saveSettings') {
     chrome.storage.sync.set({ settings: message.settings }, () => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        return;
+      }
       sendResponse({ success: true });
     });
     return true;
@@ -376,6 +438,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleSyncData(data) {
   return new Promise((resolve, reject) => {
     chrome.storage.sync.get(['blacklist', 'lastModified'], (result) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      
       const updatedData = { ...result.blacklist, ...data };
       const newModified = Date.now();
       
@@ -383,6 +450,10 @@ async function handleSyncData(data) {
         blacklist: updatedData,
         lastModified: newModified
       }, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
         resolve({ success: true, message: '数据已更新' });
       });
     });
@@ -428,6 +499,11 @@ async function testWebDAVConnection(settings) {
 async function uploadToWebDAV() {
   return new Promise((resolve, reject) => {
     chrome.storage.sync.get(['blacklist', 'webdavSettings', 'settings'], async (result) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      
       try {
         const settings = result.webdavSettings;
         if (!settings || !settings.url || !settings.username) {
@@ -484,6 +560,11 @@ async function uploadToWebDAV() {
 async function downloadFromWebDAV() {
   return new Promise((resolve, reject) => {
     chrome.storage.sync.get(['webdavSettings'], async (result) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      
       try {
         const settings = result.webdavSettings;
         if (!settings || !settings.url || !settings.username) {
@@ -531,6 +612,11 @@ async function downloadFromWebDAV() {
         }
 
         chrome.storage.sync.set(updateData, () => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          
           resolve({ 
             success: true, 
             data: jsonData, 
@@ -551,9 +637,19 @@ async function downloadFromWebDAV() {
 
 // 导出所有数据
 async function exportAllData() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.sync.get(['blacklist', 'settings'], (syncResult) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      
       chrome.storage.local.get(['accessLog'], (localResult) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        
         const exportData = {
           blacklist: syncResult.blacklist || {},
           settings: syncResult.settings || {},
@@ -572,6 +668,11 @@ async function exportAllData() {
 setInterval(async () => {
   try {
     chrome.storage.sync.get(['webdavSettings'], async (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('获取WebDAV设置失败:', chrome.runtime.lastError);
+        return;
+      }
+      
       const settings = result.webdavSettings;
       if (settings && settings.autoSync && settings.url && settings.username) {
         try {
@@ -590,14 +691,24 @@ setInterval(async () => {
 // 定期清理访问日志
 setInterval(() => {
   chrome.storage.local.get(['accessLog'], (result) => {
+    if (chrome.runtime.lastError) {
+      console.error('获取访问日志失败:', chrome.runtime.lastError);
+      return;
+    }
+    
     const accessLog = result.accessLog || [];
     const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
     
     const filteredLog = accessLog.filter(entry => entry.timestamp > thirtyDaysAgo);
     
     if (filteredLog.length !== accessLog.length) {
-      chrome.storage.local.set({ accessLog: filteredLog });
-      console.log('清理了过期的访问日志');
+      chrome.storage.local.set({ accessLog: filteredLog }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('清理访问日志失败:', chrome.runtime.lastError);
+        } else {
+          console.log('清理了过期的访问日志');
+        }
+      });
     }
   });
 }, 24 * 60 * 60 * 1000); // 每24小时清理一次
