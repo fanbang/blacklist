@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "网址黑名单管理器",
-  "version": "1.0",
-  "description": "管理网址黑名单并添加注释，访问黑名单网站时显示警告",
+  "name": "网址黑名单管理器 (WebDAV同步版)",
+  "version": "2.0",
+  "description": "管理网址黑名单并添加注释，支持WebDAV云同步，访问黑名单网站时显示警告",
   "permissions": [
     "storage",
     "activeTab",
@@ -24,5 +24,10 @@
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
   }
 }
