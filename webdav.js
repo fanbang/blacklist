@@ -1,7 +1,10 @@
 // WebDAV 同步功能模块 - 改进版
 
 class WebDAVSync {
-  constructor() {
+  constructor() { 
+    this.retryAttempts = 3;
+    this.retryDelay = 1000; // 1秒
+    this.maxRetryDelay = 10000; // 最大10秒
     this.settings = {
       url: '',
       username: '',
@@ -12,6 +15,7 @@ class WebDAVSync {
     };
     this.isConnecting = false;
     this.lastSyncTime = 0;
+	this.syncIntervalId = null; // 添加这行
   }
 
   // 初始化，加载设置
@@ -57,6 +61,21 @@ class WebDAVSync {
     return 'Basic ' + btoa(unescape(encodeURIComponent(credentials)));
   }
 
+  // 添加重试机制的请求方法
+  async fetchWithRetry(url, options, attempt = 1) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      if (attempt < this.retryAttempts) {
+        const delay = Math.min(this.retryDelay * Math.pow(2, attempt - 1), this.maxRetryDelay);
+        console.log(`请求失败，${delay}ms后重试 (${attempt}/${this.retryAttempts}):`, error.message);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.fetchWithRetry(url, options, attempt + 1);
+      }
+      throw error;
+    }
+  }
   // 测试WebDAV连接 - 改进版
   async testConnection() {
     if (!this.settings.url || !this.settings.username) {
@@ -74,55 +93,61 @@ class WebDAVSync {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
 
-      const response = await fetch(normalizedUrl, {
+      const response = await this.fetchWithRetry(normalizedUrl, {
         method: 'PROPFIND',
         headers: {
           'Authorization': this.createAuthHeader(),
           'Depth': '0',
-          'Content-Type': 'application/xml; charset="utf-8"'
+          'Content-Type': 'application/xml; charset="utf-8"',
+          'Cache-Control': 'no-cache'
         },
         signal: controller.signal,
-        // 添加CORS相关设置
         mode: 'cors',
         credentials: 'omit'
       });
 
       clearTimeout(timeoutId);
 
-      if (response.ok || response.status === 207) { // 207是WebDAV的成功状态码
+      if (response.ok || response.status === 207) {
         return { 
           success: true, 
           message: '连接成功',
           status: response.status,
-          statusText: response.statusText
+          server: response.headers.get('Server') || '未知'
         };
-      } else if (response.status === 401) {
-        throw new Error('认证失败，请检查用户名和密码');
-      } else if (response.status === 403) {
-        throw new Error('权限不足，请检查账户权限');
-      } else if (response.status === 404) {
-        throw new Error('WebDAV路径不存在，请检查服务器地址');
-      } else if (response.status === 405) {
-        // 有些服务器不支持PROPFIND，尝试OPTIONS方法
-        return await this.testConnectionWithOptions(normalizedUrl);
       } else {
-        throw new Error(`连接失败: HTTP ${response.status} ${response.statusText}`);
+        return this.handleConnectionError(response.status);
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('连接超时，请检查网络或服务器地址');
-      } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('网络错误，可能是CORS问题或服务器不可达');
-      } else if (error.message.includes('认证失败') || 
-                 error.message.includes('权限不足') || 
-                 error.message.includes('路径不存在')) {
-        throw error; // 重新抛出已知错误
-      } else {
-        throw new Error(`连接错误: ${error.message}`);
-      }
+      return this.handleConnectionException(error);
     }
   }
+// 处理连接错误
+  handleConnectionError(status) {
+    const errorMessages = {
+      401: '认证失败，请检查用户名和密码',
+      403: '权限不足，请检查账户权限',
+      404: 'WebDAV路径不存在，请检查服务器地址',
+      405: '服务器不支持PROPFIND方法，可能不是标准WebDAV服务',
+      500: '服务器内部错误',
+      502: '网关错误，服务器可能暂时不可用',
+      503: '服务暂时不可用'
+    };
+    
+    const message = errorMessages[status] || `未知错误: HTTP ${status}`;
+    throw new Error(message);
+  }
 
+  // 处理连接异常
+  handleConnectionException(error) {
+    if (error.name === 'AbortError') {
+      throw new Error('连接超时，请检查网络或服务器地址');
+    } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      throw new Error('网络错误，可能是CORS问题或服务器不可达');
+    } else {
+      throw new Error(`连接错误: ${error.message}`);
+    }
+  }
   // 备用测试方法：使用OPTIONS
   async testConnectionWithOptions(url) {
     try {
@@ -160,8 +185,38 @@ class WebDAVSync {
     }
   }
 
+  // 获取上传错误消息
+  getUploadErrorMessage(status) {
+    const messages = {
+      401: '认证失败，请重新设置密码',
+      403: '没有写入权限',
+      413: '文件过大，服务器拒绝接收',
+      507: '服务器存储空间不足',
+      422: '数据格式错误'
+    };
+    
+    return messages[status] || `上传失败: HTTP ${status}`;
+  }
+  // 改进的数据验证
+  validateData(data) {
+    if (!data || typeof data !== 'object') {
+      throw new Error('无效的数据格式');
+    }
+    
+    // 检查数据大小
+    const jsonString = JSON.stringify(data);
+    const sizeInMB = new Blob([jsonString]).size / (1024 * 1024);
+    
+    if (sizeInMB > 10) { // 限制为10MB
+      throw new Error(`数据过大 (${sizeInMB.toFixed(2)}MB)，请减少黑名单条目`);
+    }
+    
+    return true;
+  }
   // 上传数据到WebDAV - 改进版
-  async uploadData(data) {
+ async uploadData(data) {
+    this.validateData(data);
+    
     if (this.isConnecting) {
       throw new Error('正在同步中，请稍后再试');
     }
@@ -172,22 +227,28 @@ class WebDAVSync {
       const normalizedUrl = this.normalizeUrl(this.settings.url);
       const fileUrl = normalizedUrl + '/' + this.settings.filename;
 
-      const jsonData = JSON.stringify({
+      const uploadData = {
         blacklist: data,
         lastModified: Date.now(),
-        version: '1.0',
-        userAgent: 'WebDAV-Sync-Extension'
-      }, null, 2);
+        version: '2.0',
+        metadata: {
+          userAgent: navigator.userAgent,
+          uploadTime: new Date().toISOString(),
+          itemCount: Object.keys(data).length
+        }
+      };
 
+      const jsonData = JSON.stringify(uploadData, null, 2);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45秒超时
 
-      const response = await fetch(fileUrl, {
+      const response = await this.fetchWithRetry(fileUrl, {
         method: 'PUT',
         headers: {
           'Authorization': this.createAuthHeader(),
           'Content-Type': 'application/json; charset=utf-8',
-          'Content-Length': new Blob([jsonData]).size.toString()
+          'Content-Length': new Blob([jsonData]).size.toString(),
+          'Cache-Control': 'no-cache'
         },
         body: jsonData,
         signal: controller.signal,
@@ -198,33 +259,23 @@ class WebDAVSync {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('认证失败，请重新设置密码');
-        } else if (response.status === 403) {
-          throw new Error('没有写入权限');
-        } else if (response.status === 507) {
-          throw new Error('服务器存储空间不足');
-        } else {
-          throw new Error(`上传失败: HTTP ${response.status} ${response.statusText}`);
-        }
+        throw new Error(this.getUploadErrorMessage(response.status));
       }
 
       this.lastSyncTime = Date.now();
       return { 
         success: true, 
         message: '上传成功',
-        size: jsonData.length
+        size: jsonData.length,
+        itemCount: Object.keys(data).length
       };
     } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('上传超时');
-      } else {
-        throw error;
-      }
+      throw error.name === 'AbortError' ? new Error('上传超时') : error;
     } finally {
       this.isConnecting = false;
     }
   }
+
 
   // 从WebDAV下载数据 - 改进版
   async downloadData() {
@@ -360,29 +411,28 @@ class WebDAVSync {
     return !!(this.settings.url && this.settings.username && this.settings.password);
   }
 
-  // 启动自动同步
+  // 修改 startAutoSync 方法
   startAutoSync() {
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
+    if (this.syncIntervalId) {
+      clearInterval(this.syncIntervalId);
     }
 
     if (this.settings.autoSync && this.isConfigured()) {
-      this.syncInterval = setInterval(async () => {
+      this.syncIntervalId = setInterval(async () => {
         try {
           await this.syncData();
           console.log('自动同步完成');
         } catch (error) {
           console.error('自动同步失败:', error);
         }
-      }, this.settings.syncInterval * 60 * 1000); // 转换为毫秒
+      }, this.settings.syncInterval * 60 * 1000);
     }
   }
-
-  // 停止自动同步
+  // 修改 stopAutoSync 方法
   stopAutoSync() {
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-      this.syncInterval = null;
+    if (this.syncIntervalId) {
+      clearInterval(this.syncIntervalId);
+      this.syncIntervalId = null;
     }
   }
 }
