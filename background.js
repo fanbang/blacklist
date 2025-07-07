@@ -1,11 +1,17 @@
 // 插件安装时的初始化
 chrome.runtime.onInstalled.addListener(() => {
   // 初始化存储
-  chrome.storage.sync.get(['blacklist', 'webdavSettings', 'settings'], (result) => {
+  chrome.storage.sync.get(['blacklist', 'groups', 'webdavSettings', 'settings'], (result) => {
     if (!result.blacklist) {
       chrome.storage.sync.set({ 
         blacklist: {},
         lastModified: Date.now()
+      });
+    }
+
+    if (!result.groups) {
+      chrome.storage.sync.set({
+        groups: { 'default': '默认分组' }
       });
     }
     
@@ -121,28 +127,22 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 function handleBlockedSite(tab, matchedUrl, comment, settings) {
   // 发送通知（如果启用）
   if (settings.enableNotifications) {
+    const commentText = typeof comment === 'object' ? (comment.comment || '') : (comment || '');
     chrome.notifications.create(`blocked_${tab.id}`, {
       type: 'basic',
       iconUrl: 'icon48.png',
       title: '网址黑名单警告',
-      message: `访问了黑名单网址: ${matchedUrl}${comment ? '\n注释: ' + comment : ''}`,
+      message: `访问了黑名单网址: ${matchedUrl}${commentText ? '\n注释: ' + commentText : ''}`,
       silent: false
     });
   }
   
-  // 自动关闭标签页（如果启用）
-  if (settings.enableAutoClose) {
-    setTimeout(() => {
-      chrome.tabs.remove(tab.id, (result) => {
-        if (chrome.runtime.lastError) {
-          console.error('关闭标签页失败:', chrome.runtime.lastError);
-        }
-      });
-    }, 3000);
-  }
+  // 注意：不要自动关闭标签页，只显示警告
+  // 让用户自己决定是否继续浏览
   
   // 记录访问日志
-  logBlacklistAccess(tab.url, matchedUrl, comment);
+  const commentText = typeof comment === 'object' ? (comment.comment || '') : (comment || '');
+  logBlacklistAccess(tab.url, matchedUrl, commentText);
 }
 // 提取徽章更新逻辑
 function updateTabBadge(tabId, isBlocked) {
@@ -199,8 +199,9 @@ async function checkTabBlacklist(tab) {
       let comment = '';
       
       // 优化匹配逻辑
-      for (const [blockedUrl, blockedComment] of Object.entries(blacklist)) {
+      for (const [blockedUrl, blockedData] of Object.entries(blacklist)) {
         const blockedUrlLower = blockedUrl.toLowerCase();
+        const blockedComment = typeof blockedData === 'string' ? blockedData : blockedData.comment || '';
         
         if (settings.strictMode) {
           // 严格模式：完全匹配
@@ -302,7 +303,11 @@ function addCurrentPageToBlacklist(tab) {
       const blacklist = result.blacklist || {};
       
       if (!blacklist[hostname]) {
-        blacklist[hostname] = `来自右键菜单: ${tab.title || '未知页面'}`;
+        blacklist[hostname] = {
+          comment: `来自右键菜单: ${tab.title || '未知页面'}`,
+          group: 'default',
+          addTime: Date.now()
+        };
         
         chrome.storage.sync.set({ 
           blacklist,
@@ -349,7 +354,11 @@ function addLinkToBlacklist(linkUrl) {
       const blacklist = result.blacklist || {};
       
       if (!blacklist[hostname]) {
-        blacklist[hostname] = '来自右键菜单链接';
+        blacklist[hostname] = {
+          comment: '来自右键菜单链接',
+          group: 'default',
+          addTime: Date.now()
+        };
         
         chrome.storage.sync.set({ 
           blacklist,
@@ -558,7 +567,7 @@ async function testWebDAVConnection(settings) {
 // 上传到WebDAV
 async function uploadToWebDAV() {
   return new Promise((resolve, reject) => {
-    chrome.storage.sync.get(['blacklist', 'webdavSettings', 'settings'], async (result) => {
+    chrome.storage.sync.get(['blacklist', 'groups', 'webdavSettings', 'settings'], async (result) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
@@ -576,9 +585,10 @@ async function uploadToWebDAV() {
 
         const exportData = {
           blacklist: result.blacklist || {},
+          groups: result.groups || { 'default': '默认分组' },
           settings: result.settings || {},
           lastModified: Date.now(),
-          version: '2.0',
+          version: '2.1',
           exportTime: new Date().toISOString()
         };
 
@@ -663,6 +673,7 @@ async function downloadFromWebDAV() {
         // 保存下载的数据
         const updateData = {
           blacklist: jsonData.blacklist || {},
+          groups: jsonData.groups || { 'default': '默认分组' },
           lastModified: jsonData.lastModified || Date.now()
         };
 
@@ -698,7 +709,7 @@ async function downloadFromWebDAV() {
 // 导出所有数据
 async function exportAllData() {
   return new Promise((resolve, reject) => {
-    chrome.storage.sync.get(['blacklist', 'settings'], (syncResult) => {
+    chrome.storage.sync.get(['blacklist', 'groups', 'settings'], (syncResult) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
@@ -712,10 +723,11 @@ async function exportAllData() {
         
         const exportData = {
           blacklist: syncResult.blacklist || {},
+          groups: syncResult.groups || { 'default': '默认分组' },
           settings: syncResult.settings || {},
           accessLog: localResult.accessLog || [],
           exportTime: new Date().toISOString(),
-          version: '2.0'
+          version: '2.1'
         };
         
         resolve({ success: true, data: exportData });
