@@ -355,10 +355,242 @@
       34%, 66% { content: '..'; }
       67%, 100% { content: '...'; }
     }
+
+    /* 分组相关样式 */
+    .group-header {
+      background: #e8f5e8;
+      padding: 8px 12px;
+      margin: 15px 0 10px 0;
+      border-left: 4px solid #4CAF50;
+      border-radius: 4px;
+      font-weight: bold;
+      color: #2e7d32;
+      position: relative;
+    }
+
+    .group-actions {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .group-actions button {
+      padding: 2px 6px;
+      font-size: 11px;
+      margin-left: 5px;
+    }
+
+    .add-group-btn {
+      background-color: #2196F3;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+
+    .add-group-btn:hover {
+      background-color: #1976D2;
+    }
+
+    .recommendation-box {
+      background: #e8f5e8;
+      border: 1px solid #c8e6c9;
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+
+    .recommendation-box p {
+      margin: 4px 0;
+    }
+
+    .recommendation-box strong {
+      color: #2e7d32;
+    }
+
+    /* 分组管理模态框 */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+    }
+
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: none;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 400px;
+      position: relative;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .close {
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #999;
+    }
+
+    .close:hover {
+      color: #333;
+    }
+
+    .group-list {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 15px;
+    }
+
+    .group-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .group-item:last-child {
+      border-bottom: none;
+    }
+
+    .group-name {
+      flex: 1;
+      margin-right: 10px;
+    }
+
+    .group-item-actions {
+      display: flex;
+      gap: 5px;
+    }
+
+    .rename-btn {
+      background-color: #ff9800;
+      font-size: 11px;
+      padding: 3px 8px;
+    }
+
+    /* 导出选项样式 */
+    .export-options h4 {
+      margin: 10px 0 8px 0;
+      color: #333;
+      font-size: 14px;
+    }
+
+    .radio-group {
+      margin: 8px 0;
+    }
+
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      font-weight: normal;
+      cursor: pointer;
+    }
+
+    .radio-group input[type="radio"] {
+      width: auto;
+      margin-right: 8px;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 1px solid #ddd;
+    }
+
+    .modal-content {
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .export-options {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    /* 导入选项样式 */
+    .import-options {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .file-upload-area {
+      margin: 15px 0;
+    }
+
+    .file-upload-area div {
+      transition: border-color 0.3s;
+    }
+
+    .file-upload-area div:hover {
+      border-color: #4CAF50;
+    }
+
+    .file-upload-area div.dragover {
+      border-color: #4CAF50;
+      background-color: #f0f8f0;
+    }
+
+    /* WebDAV消息样式 */
+    .webdav-message {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    .webdav-message.success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .webdav-message.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .webdav-message.info {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .webdav-message.warning {
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
-  <h1>网址黑名单管理器</h1>
+  <h1>网址黑名单管理器 <span id="version" style="font-size: 14px; color: #666; font-weight: normal;">(v2.1)</span></h1>
   
   <div class="tabs">
     <button class="tab active" data-tab="add">添加网址</button>
@@ -370,11 +602,20 @@
   
   <!-- 添加网址标签页 -->
   <div id="add-tab" class="tab-content active">
-    <div class="input-group">
+     <div class="input-group">
       <label for="urlInput">网址:</label>
-      <input type="text" id="urlInput" placeholder="输入要添加到黑名单的网址">
+      <div class="input-with-button">
+        <input type="text" id="urlInput" placeholder="输入要添加到黑名单的网址">
+        <button type="button" id="getHostBtn" class="get-host-btn" title="获取当前页面主页">🏠</button>
+      </div>
     </div>
-    
+    <div class="input-group">
+      <label for="groupSelect">分组:</label>
+      <select id="groupSelect">
+        <option value="default">默认分组</option>
+      </select>
+      <button id="addGroupBtn" class="add-group-btn" style="margin-left: 10px;">新建分组</button>
+    </div>
     <div class="input-group">
       <label for="commentInput">注释:</label>
       <textarea id="commentInput" placeholder="添加注释（可选）"></textarea>
@@ -392,19 +633,34 @@
       黑名单总数: 0
     </div>
     
+    <div class="export-import">
+      <div style="margin-bottom: 10px;">
+        <button id="exportBtn" class="export-btn">快速导出黑名单</button>
+        <button id="exportAdvancedBtn" class="export-btn">高级导出选项</button>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <button id="importBtn" class="import-btn">导入黑名单</button>
+        <button id="importAdvancedBtn" class="import-btn">高级导入选项</button>
+        <button id="clearAllBtn" class="delete-btn">清空所有</button>
+      </div>
+      <input type="file" id="fileInput" class="file-input" accept=".json">
+    </div>
+    
+    <div class="input-group">
+      <label for="groupFilter">分组筛选:</label>
+      <select id="groupFilter">
+        <option value="">全部分组</option>
+        <option value="default">默认分组</option>
+      </select>
+      <button id="manageGroupsBtn" style="margin-left: 10px;">管理分组</button>
+    </div>
+    
     <div class="search-box">
       <input type="text" id="searchInput" placeholder="搜索网址或注释...">
     </div>
     
     <div id="blacklistContainer">
       <div id="blacklistList"></div>
-    </div>
-    
-    <div class="export-import">
-      <button id="exportBtn" class="export-btn">导出黑名单</button>
-      <button id="importBtn" class="import-btn">导入黑名单</button>
-      <input type="file" id="fileInput" class="file-input" accept=".json">
-      <button id="clearAllBtn" class="delete-btn">清空所有</button>
     </div>
   </div>
 
@@ -421,6 +677,13 @@
       <div class="input-group">
         <label for="webdavUrl">WebDAV服务器地址:</label>
         <input type="text" id="webdavUrl" placeholder="https://example.com/dav/">
+        <div class="recommendation-box">
+          <p>💡 推荐免费WebDAV服务: <strong>InfiniCLOUD</strong></p>
+          <p>使用推荐码 <strong>CEWA5</strong> 注册可获得5GB免费存储!</p>
+          <a href="https://infini-cloud.net/en/" target="_blank" style="color: #4CAF50; text-decoration: none;">
+            🔗 立即注册 InfiniCLOUD
+          </a>
+        </div>
       </div>
       
       <div class="input-group">
@@ -452,6 +715,9 @@
         <button id="saveConfigBtn">保存配置</button>
         <button id="testConnectionBtn" class="test-btn">测试连接</button>
       </div>
+      
+      <!-- WebDAV操作提示信息显示区域 -->
+      <div id="webdavMessage" class="webdav-message" style="display: none;"></div>
     </div>
     
     <div class="btn-group">
@@ -462,6 +728,166 @@
     
     <div class="sync-status" id="lastSyncTime" style="display: none;">
       最后同步时间: 从未同步
+    </div>
+  </div>
+
+  <!-- 高级导入选项模态框 -->
+  <div id="importModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>高级导入选项</h3>
+        <span class="close" id="closeImportModal">&times;</span>
+      </div>
+      
+      <div class="import-options">
+        <h4>选择导入内容：</h4>
+        <div class="checkbox-group">
+          <input type="checkbox" id="importBlacklist" checked>
+          <label for="importBlacklist">黑名单数据</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="importGroups" checked>
+          <label for="importGroups">分组信息</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="importSettings">
+          <label for="importSettings">扩展设置</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="importWebDAV">
+          <label for="importWebDAV">WebDAV配置</label>
+        </div>
+        <div class="checkbox-group" style="margin-left: 20px; border-left: 3px solid #ff9800; padding-left: 10px; background: #fff3e0;">
+          <input type="checkbox" id="importWebDAVPassword">
+          <label for="importWebDAVPassword">⚠️ 导入WebDAV密码 (覆盖现有密码)</label>
+        </div>
+        
+        <hr style="margin: 15px 0;">
+        
+        <h4>导入策略：</h4>
+        <div class="radio-group">
+          <label><input type="radio" name="importStrategy" value="merge" checked> 合并模式 (保留现有数据)</label>
+        </div>
+        <div class="radio-group">
+          <label><input type="radio" name="importStrategy" value="replace"> 替换模式 (覆盖现有数据)</label>
+        </div>
+        
+        <hr style="margin: 15px 0;">
+        
+        <h4>分组处理：</h4>
+        <div class="radio-group">
+          <label><input type="radio" name="groupStrategy" value="keep" checked> 保留现有分组</label>
+        </div>
+        <div class="radio-group">
+          <label><input type="radio" name="groupStrategy" value="merge"> 合并分组</label>
+        </div>
+        <div class="radio-group">
+          <label><input type="radio" name="groupStrategy" value="replace"> 替换所有分组</label>
+        </div>
+        
+        <hr style="margin: 15px 0;">
+        
+        <div class="file-upload-area">
+          <h4>选择文件：</h4>
+          <div style="border: 2px dashed #ddd; padding: 20px; text-align: center; border-radius: 4px;">
+            <p>拖拽文件到此处或点击选择文件</p>
+            <button type="button" id="selectImportFile" class="import-btn">选择文件</button>
+            <input type="file" id="advancedFileInput" class="file-input" accept=".json,.csv,.txt">
+            <div id="selectedFileName" style="margin-top: 10px; color: #666; font-size: 14px;"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button id="executeImportBtn" class="import-btn" disabled>开始导入</button>
+        <button id="cancelImportBtn" class="cancel-btn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 高级导出选项模态框 -->
+  <div id="exportModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>高级导出选项</h3>
+        <span class="close" id="closeExportModal">&times;</span>
+      </div>
+      
+      <div class="export-options">
+        <h4>选择导出内容：</h4>
+        <div class="checkbox-group">
+          <input type="checkbox" id="exportBlacklist" checked>
+          <label for="exportBlacklist">黑名单数据</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="exportGroups" checked>
+          <label for="exportGroups">分组信息</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="exportSettings">
+          <label for="exportSettings">扩展设置</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="exportWebDAV">
+          <label for="exportWebDAV">WebDAV配置</label>
+        </div>
+        <div class="checkbox-group" style="margin-left: 20px; border-left: 3px solid #ff9800; padding-left: 10px; background: #fff3e0;">
+          <input type="checkbox" id="exportWebDAVPassword">
+          <label for="exportWebDAVPassword">⚠️ 包含WebDAV密码 (有安全风险)</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="exportAccessLog">
+          <label for="exportAccessLog">访问日志</label>
+        </div>
+        
+        <hr style="margin: 15px 0;">
+        
+        <h4>分组筛选：</h4>
+        <div class="checkbox-group">
+          <input type="checkbox" id="exportAllGroups" checked>
+          <label for="exportAllGroups">导出所有分组</label>
+        </div>
+        <div id="groupCheckboxes" style="margin-left: 20px; display: none;">
+          <!-- 分组复选框将在这里动态生成 -->
+        </div>
+        
+        <hr style="margin: 15px 0;">
+        
+        <h4>导出格式：</h4>
+        <div class="radio-group">
+          <label><input type="radio" name="exportFormat" value="json" checked> JSON格式 (完整数据)</label>
+        </div>
+        <div class="radio-group">
+          <label><input type="radio" name="exportFormat" value="csv"> CSV格式 (仅黑名单)</label>
+        </div>
+        <div class="radio-group">
+          <label><input type="radio" name="exportFormat" value="txt"> TXT格式 (仅域名列表)</label>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button id="executeExportBtn" class="export-btn">开始导出</button>
+        <button id="cancelExportBtn" class="cancel-btn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分组管理模态框 -->
+  <div id="groupModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>管理分组</h3>
+        <span class="close" id="closeModal">&times;</span>
+      </div>
+      
+      <div class="input-group">
+        <input type="text" id="newGroupName" placeholder="输入新分组名称">
+        <button id="createGroupBtn">创建分组</button>
+      </div>
+      
+      <div class="group-list" id="groupList">
+        <!-- 分组列表将在这里动态生成 -->
+      </div>
     </div>
   </div>
 
